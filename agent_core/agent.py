@@ -1,33 +1,9 @@
 import json
-from inspect import getdoc
-from typing import Any
-
-from pydantic.experimental.arguments_schema import generate_arguments_schema
-from pydantic.json_schema import GenerateJsonSchema
-
-from agent_core.messages_storage import MessagesStorage
+from typing import Any, Callable, Dict
 
 from .llm_client import LlmClient
-
-
-def _build_function_tool_schema(tool_name: str, tool: Any) -> dict[str, Any]:
-    """
-    根据 Python 函数自动生成 OpenAI Function Calling 格式的 schema。
-
-    :param tool_name: 工具名称。
-    :param tool: 实际的工具函数对象。
-    :return: 包含该工具参数描述的 JSON schema 字典。
-    """
-    return {
-        "type": "function",
-        "function": {
-            "name": tool_name,
-            "description": getdoc(tool) or "",
-            "parameters": GenerateJsonSchema().generate(
-                generate_arguments_schema(tool)
-            ),
-        },
-    }
+from .messages_storage import MessagesStorage
+from .tool_registry import ToolRegistry
 
 
 class Agent:
@@ -37,21 +13,27 @@ class Agent:
 
     def __init__(
         self,
-        llm_client: LlmClient,
-        tools: dict,
+        llm_model_name: str,
+        llm_api_key: str,
+        llm_base_url: str,
         system_prompt: str,
-        messages_storage: MessagesStorage,
+        tools: Dict[str, Callable[..., Any]] = {},
     ):
-        self.llm_client = llm_client
-        self.tool_functions = tools
-        # 预先生成所有工具的 schema 数据，用于后续传给模型
-        self.tools_schema = [
-            _build_function_tool_schema(tool_name, tool)
-            for tool_name, tool in tools.items()
-        ]
-        # 初始化消息记录，设置系统提示词
-        self.messages_storage = messages_storage
-        self.messages_storage.add_system_message(system_prompt)
+        # 初始化 LLM 客户端
+        self._llm_client = LlmClient(
+            model=llm_model_name, api_key=llm_api_key, base_url=llm_base_url
+        )
+
+        # 保存系统提示词，便于会话清空后恢复初始上下文
+        self._system_prompt = system_prompt
+
+        # 初始化消息存储对象，设置系统提示词
+        self._messages_storage = MessagesStorage()
+        self._messages_storage.add_system_message(self._system_prompt)
+
+        # 初始化工具注册表
+        self._tool_registry = ToolRegistry()
+        self._tool_registry.register_tools(tools)
 
     def chat(self, user_input: str, max_turns: int = 10) -> str:
         """
@@ -61,17 +43,17 @@ class Agent:
         :param max_turns: 最大对话轮数，防止陷入无限循环调用。
         :return: 模型的最终回复。
         """
-        self.messages_storage.add_user_message(user_input)
+        self._messages_storage.add_user_message(user_input)
 
         # 进入对话循环，模型可能会多轮调用工具直到完成任务或达到最大轮数限制
         for _ in range(max_turns):
-            # 获取当前对话历史并传给模型，模型会根据历史消息决定是否调用工具
-            llm_response = self.llm_client.generate(
-                messages=self.messages_storage.get_messages(),
-                tools_schema=self.tools_schema,
+            # 每轮读取最新的工具 schema，支持运行时注册新工具
+            llm_response = self._llm_client.generate(
+                messages=self._messages_storage.get_messages(),
+                tools_schema=self._tool_registry.get_tools_schema(),
             )
             # 记录模型的回复和工具调用信息
-            self.messages_storage.add_assistant_message(
+            self._messages_storage.add_assistant_message(
                 llm_response.content, llm_response.tool_calls
             )
 
@@ -79,10 +61,9 @@ class Agent:
             if llm_response.finish_reason != "tool_calls":
                 if llm_response.finish_reason == "stop":
                     return llm_response.content
-                else:
-                    raise RuntimeError(
-                        f"LLM response ended with unexpected reason: {llm_response.finish_reason}"
-                    )
+                raise RuntimeError(
+                    f"LLM response ended with unexpected reason: {llm_response.finish_reason}"
+                )
 
             for tool_call in llm_response.tool_calls:
                 tool_call_id = tool_call.id
@@ -97,14 +78,34 @@ class Agent:
                         else tool_args_str
                     )
                     # 执行工具函数并获取结果，工具函数的参数需要与模型传来的参数完全匹配
-                    tool_call_result = str(self.tool_functions[tool_name](**tool_args))
+                    tool_call_result = self._tool_registry.call_tool(
+                        tool_name=tool_name, tool_args=tool_args
+                    )
                 except Exception as e:
+                    print(f"Error occurred while calling tool '{tool_name}': {e}")
                     continue
 
                 # 记录工具执行的结果以备下一轮模型推理
-                self.messages_storage.add_tool_message(
+                self._messages_storage.add_tool_message(
                     tool_name, tool_call_result, tool_call_id
                 )
+
         raise RuntimeError(
             f"Agent failed to complete the task within {max_turns} turns of interaction."
         )
+
+    def register_tool(self, tool_name: str, tool: Callable[..., Any]) -> None:
+        """注册单个工具函数。"""
+        self._tool_registry.register_tool(tool_name=tool_name, tool=tool)
+
+    def register_tools(self, tools: Dict[str, Callable[..., Any]]) -> None:
+        """批量注册工具函数。"""
+        self._tool_registry.register_tools(tools=tools)
+
+    def clear_session(self) -> None:
+        """
+        清空当前会话历史，并恢复初始系统提示词。
+        已注册工具会保留。
+        """
+        self._messages_storage.clear()
+        self._messages_storage.add_system_message(self._system_prompt)
