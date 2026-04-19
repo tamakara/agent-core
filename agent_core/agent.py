@@ -1,5 +1,4 @@
 import json
-from typing import Any, Callable, Dict, List
 
 from .llm_client import LlmClient
 from .messages_storage import MessagesStorage
@@ -17,7 +16,8 @@ class Agent:
         llm_api_key: str,
         llm_base_url: str,
         system_prompt: str,
-        mcp_servers: List[str],
+        mcp_sse_url: str,
+        mcp_sse_bearer_token: str = "",
     ):
         # 初始化 LLM 客户端
         self._llm_client = LlmClient(
@@ -32,8 +32,11 @@ class Agent:
         self._messages_storage.add_system_message(self._system_prompt)
 
         # 初始化工具注册表
-        self._tool_registry = ToolRegistry()
-        self._tool_registry.register_mcp_servers(mcp_servers)
+        self._tool_registry = ToolRegistry(
+            sse_url=mcp_sse_url,
+            bearer_token=mcp_sse_bearer_token or None,
+        )
+        self._tool_registry.register_mcp_server()
 
     def chat(self, user_input: str, max_turns: int = 10) -> str:
         """
@@ -93,14 +96,6 @@ class Agent:
         raise RuntimeError(
             f"Agent failed to complete the task within {max_turns} turns of interaction."
         )
-
-    def register_tool(self, tool_name: str, tool: Callable[..., Any]) -> None:
-        """注册单个工具函数。"""
-        self._tool_registry.register_tool(tool_name=tool_name, tool=tool)
-
-    def register_tools(self, tools: Dict[str, Callable[..., Any]]) -> None:
-        """批量注册工具函数。"""
-        self._tool_registry.register_tools(tools=tools)
 
     def clear_session(self) -> None:
         """

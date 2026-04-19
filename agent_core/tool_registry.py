@@ -1,49 +1,119 @@
-from inspect import getdoc
-from typing import Any, Callable, Dict, List
+import json
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import Any, AsyncIterator, Dict, List
 
-from pydantic.experimental.arguments_schema import generate_arguments_schema
-from pydantic.json_schema import GenerateJsonSchema
+import anyio
+import mcp.types as mcp_types
+from mcp.client.session import ClientSession
+from mcp.client.sse import sse_client
+
+
+@dataclass(frozen=True)
+class McpToolBinding:
+    # 本地工具名 -> 远端工具定义映射
+    remote_name: str
+    description: str
+    input_schema: Dict[str, Any]
 
 
 class ToolRegistry:
-    """
-    统一管理可被 LLM 调用的工具函数及其 OpenAI Function Calling schema。
-    """
+    def __init__(self, sse_url: str, bearer_token: str | None = None):
+        # MCP Gateway 的 SSE 地址
+        self._sse_url = sse_url
+        # 可选 Bearer Token，用于网关鉴权
+        self._bearer_token = bearer_token
+        # key: 暴露给模型的工具名
+        self._mcp_tools: Dict[str, McpToolBinding] = {}
+        # OpenAI tools schema 缓存，每次注册后重建
+        self._tools_schema: List[Dict[str, Any]] = []
 
-    def __init__(self):
-        # 基于当前工具集合生成的 schema 缓存
-        self.tools_schema: List[Dict[str, Any]] = []
+    def register_mcp_server(self) -> None:
+        # 启动时从 MCP server 拉取工具列表
+        try:
+            remote_tools = anyio.run(self._list_mcp_tools_async)
+        except Exception as exc:
+            raise RuntimeError("连接 MCP SSE 服务失败") from exc
 
-    def register_mcp_servers(self, mcp_servers: List[str]) -> None:
-        """
-        批量注册 MCP 服务器。
-        """
-        for server in mcp_servers:
-            self.register_mcp_server(server)
-
-    def register_mcp_server(self, mcp_server: str) -> None:
-        """
-        注册 MCP 服务器。
-        """
-        # 这里可以添加具体的 MCP 服务器注册逻辑
-        pass
-
-    def _refresh_tools_schema(self) -> None:
-        """
-        每次注册后重建 schema，保证传给模型的工具定义与当前注册表一致。
-        """
-        # 这里可以添加具体的 schema 生成逻辑，示例中暂时使用空列表
-        self.tools_schema = []
+        for remote_tool in remote_tools:
+            self._mcp_tools[remote_tool.name] = McpToolBinding(
+                remote_name=remote_tool.name,
+                description=remote_tool.description or "MCP tool from SSE Gateway",
+                input_schema=self._normalize_schema(remote_tool.inputSchema),
+            )
+        self._refresh_tools_schema()
 
     def get_tools_schema(self) -> List[Dict[str, Any]]:
-        """
-        获取当前可用工具的 schema 列表。
-        """
-        return self.tools_schema
+        return self._tools_schema
 
     def call_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> str:
-        """
-        按工具名执行工具，并将结果统一转为字符串返回。
-        """
-        # 这里可以添加具体的工具调用逻辑
-        return "Tool result"
+        # 按工具名路由并调用远端 MCP 工具
+        binding = self._mcp_tools.get(tool_name)
+        if binding is None:
+            raise KeyError(f"未找到工具: {tool_name}")
+        if not isinstance(tool_args, dict):
+            raise TypeError(f"工具参数必须是 dict，当前为: {type(tool_args)}")
+
+        try:
+            result = anyio.run(
+                self._call_mcp_tool_async, binding.remote_name, tool_args
+            )
+        except Exception as exc:
+            raise RuntimeError(f"调用 MCP SSE 工具失败: {exc}") from exc
+
+        return json.dumps(
+            result.model_dump(by_alias=True, mode="json", exclude_none=True),
+            ensure_ascii=False,
+        )
+
+    def _refresh_tools_schema(self) -> None:
+        # 将 MCP 工具定义转换为 OpenAI Function Calling schema
+        self._tools_schema = [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": binding.description,
+                    "parameters": binding.input_schema,
+                },
+            }
+            for name, binding in self._mcp_tools.items()
+        ]
+
+    async def _list_mcp_tools_async(self) -> List[mcp_types.Tool]:
+        # 简化实现：一次性拉取工具列表，不处理分页
+        async with self._mcp_session() as session:
+            result = await session.list_tools()
+            return result.tools
+
+    async def _call_mcp_tool_async(
+        self, remote_tool_name: str, tool_args: Dict[str, Any]
+    ) -> mcp_types.CallToolResult:
+        async with self._mcp_session() as session:
+            return await session.call_tool(name=remote_tool_name, arguments=tool_args)
+
+    @asynccontextmanager
+    async def _mcp_session(self) -> AsyncIterator[ClientSession]:
+        # 唯一传输：SSE
+        headers = (
+            {"Authorization": f"Bearer {self._bearer_token}"}
+            if self._bearer_token
+            else None
+        )
+        async with sse_client(self._sse_url, headers=headers) as streams:
+            read_stream, write_stream = streams
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                yield session
+
+    @staticmethod
+    def _normalize_schema(schema: Any) -> Dict[str, Any]:
+        # 兜底为合法 object schema，避免下游工具 schema 校验失败
+        if not isinstance(schema, dict):
+            return {"type": "object", "properties": {}}
+        out = dict(schema)
+        if "type" not in out:
+            out["type"] = "object"
+        if out["type"] == "object" and "properties" not in out:
+            out["properties"] = {}
+        return out

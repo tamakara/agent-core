@@ -1,5 +1,4 @@
-﻿import os
-import re
+import os
 
 from dotenv import load_dotenv
 
@@ -12,6 +11,8 @@ load_dotenv()
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME", "")
+MCP_SSE_URL = os.environ.get("MCP_SSE_URL", "http://localhost:8080/sse")
+MCP_SSE_BEARER_TOKEN = os.environ.get("MCP_SSE_BEARER_TOKEN", "")
 
 # 定义 Agent 的系统提示词，指导 Agent 的行为模式和任务约束
 SYSTEM_PROMPT = """
@@ -19,24 +20,21 @@ SYSTEM_PROMPT = """
 - 可以连续调用多个工具来完成任务。
 """
 
-# 将所有工具函数放入一个字典，方便后续调用
-MCP_SERVERS = ['http://localhost:8001', 'http://localhost:8002']
+# 唯一 MCP Server：SSE 网关
 
-# 初始化 Agent，传入客户端、功能工具和系统提示词
-agent = Agent(
-    llm_api_key=LLM_API_KEY,
-    llm_base_url=LLM_BASE_URL,
-    llm_model_name=LLM_MODEL_NAME,
-    system_prompt=SYSTEM_PROMPT,
-    mcp_servers=MCP_SERVERS,
-)
+try:
+    agent = Agent(
+        llm_api_key=LLM_API_KEY,
+        llm_base_url=LLM_BASE_URL,
+        llm_model_name=LLM_MODEL_NAME,
+        system_prompt=SYSTEM_PROMPT,
+        mcp_sse_url=MCP_SSE_URL,
+        mcp_sse_bearer_token=MCP_SSE_BEARER_TOKEN,
+    )
 
-while True:
-    # 模拟用户的提问
-    user_prompt = input("请输入您的问题: ")
-
-    # 启动与 Agent 的对话，执行推理和工具调用流程
-    response = agent.chat(user_input=user_prompt, max_turns=100)
-
-    # 打印最终的回答结果
-    print(response)
+    while True:
+        user_prompt = input("请输入您的问题: ")
+        response = agent.chat(user_input=user_prompt, max_turns=100)
+        print(response)
+except Exception as e:
+    print(f"启动失败: {e}")
