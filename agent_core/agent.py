@@ -24,9 +24,12 @@ class Agent:
             model=llm_model_name, api_key=llm_api_key, base_url=llm_base_url
         )
 
+        # 保存系统提示词，便于会话清空后恢复初始上下文
+        self._system_prompt = system_prompt
+
         # 初始化消息存储对象，设置系统提示词
         self._messages_storage = MessagesStorage()
-        self._messages_storage.add_system_message(system_prompt)
+        self._messages_storage.add_system_message(self._system_prompt)
 
         # 初始化工具注册表
         self._tool_registry = ToolRegistry()
@@ -98,3 +101,11 @@ class Agent:
     def register_tools(self, tools: dict[str, Callable[..., Any]]) -> None:
         """批量注册工具函数。"""
         self._tool_registry.register_tools(tools=tools)
+
+    def clear_session(self) -> None:
+        """
+        清空当前会话历史，并恢复初始系统提示词。
+        已注册工具会保留。
+        """
+        self._messages_storage.clear()
+        self._messages_storage.add_system_message(self._system_prompt)

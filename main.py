@@ -14,10 +14,9 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME", "")
 
 # 定义 Agent 的系统提示词，指导 Agent 的行为模式和任务约束
-AGENT_SYSTEM_PROMPT = """
+SYSTEM_PROMPT = """
 - 如果问题需要实时或外部信息，优先调用对应工具，不要臆测。
 - 可以连续调用多个工具来完成任务。
-- 在拿到足够信息后，直接给出简洁、清晰、对用户有帮助的最终答案。
 """
 
 
@@ -67,7 +66,7 @@ agent = Agent(
     llm_api_key=LLM_API_KEY,
     llm_base_url=LLM_BASE_URL,
     llm_model_name=LLM_MODEL_NAME,
-    system_prompt=AGENT_SYSTEM_PROMPT,
+    system_prompt=SYSTEM_PROMPT,
     tools=AVAILABLE_TOOLS,
 )
 
