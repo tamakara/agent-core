@@ -62,16 +62,14 @@ AVAILABLE_TOOLS = {
     "calculate": calculate,
 }
 
-
-
 # 初始化 Agent，传入客户端、功能工具和系统提示词
 agent = Agent(
     llm_api_key=LLM_API_KEY,
     llm_base_url=LLM_BASE_URL,
     llm_model_name=LLM_MODEL_NAME,
     system_prompt=AGENT_SYSTEM_PROMPT,
+    tools=AVAILABLE_TOOLS,
 )
-agent.register_tools(AVAILABLE_TOOLS)
 
 while True:
     # 模拟用户的提问
@@ -82,4 +80,3 @@ while True:
 
     # 打印最终的回答结果
     print(response)
-

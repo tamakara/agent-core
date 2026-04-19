@@ -17,7 +17,7 @@ class Agent:
         llm_api_key: str,
         llm_base_url: str,
         system_prompt: str,
-        tools: dict[str, Callable[..., Any]] | None = None,
+        tools: dict[str, Callable[..., Any]] = {},
     ):
         # 初始化 LLM 客户端
         self._llm_client = LlmClient(
@@ -30,14 +30,7 @@ class Agent:
 
         # 初始化工具注册表
         self._tool_registry = ToolRegistry()
-        if tools:
-            self.register_tools(tools)
-
-    def register_tool(self, tool_name: str, tool: Callable[..., Any]) -> None:
-        self._tool_registry.register_tool(tool_name=tool_name, tool=tool)
-
-    def register_tools(self, tools: dict[str, Callable[..., Any]]) -> None:
-        self._tool_registry.register_tools(tools=tools)
+        self._tool_registry.register_tools(tools)
 
     def chat(self, user_input: str, max_turns: int = 10) -> str:
         """
@@ -85,7 +78,8 @@ class Agent:
                     tool_call_result = self._tool_registry.call_tool(
                         tool_name=tool_name, tool_args=tool_args
                     )
-                except Exception:
+                except Exception as e:
+                    print(f"Error occurred while calling tool '{tool_name}': {e}")
                     continue
 
                 # 记录工具执行的结果以备下一轮模型推理
@@ -96,3 +90,11 @@ class Agent:
         raise RuntimeError(
             f"Agent failed to complete the task within {max_turns} turns of interaction."
         )
+
+    def register_tool(self, tool_name: str, tool: Callable[..., Any]) -> None:
+        """注册单个工具函数。"""
+        self._tool_registry.register_tool(tool_name=tool_name, tool=tool)
+
+    def register_tools(self, tools: dict[str, Callable[..., Any]]) -> None:
+        """批量注册工具函数。"""
+        self._tool_registry.register_tools(tools=tools)
