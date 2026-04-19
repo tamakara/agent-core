@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 from .llm_client import LlmClient
 from .messages_storage import MessagesStorage
@@ -17,7 +17,7 @@ class Agent:
         llm_api_key: str,
         llm_base_url: str,
         system_prompt: str,
-        tools: dict[str, Callable[..., Any]] = {},
+        tools: Dict[str, Callable[..., Any]] = {},
     ):
         # 初始化 LLM 客户端
         self._llm_client = LlmClient(
@@ -98,7 +98,7 @@ class Agent:
         """注册单个工具函数。"""
         self._tool_registry.register_tool(tool_name=tool_name, tool=tool)
 
-    def register_tools(self, tools: dict[str, Callable[..., Any]]) -> None:
+    def register_tools(self, tools: Dict[str, Callable[..., Any]]) -> None:
         """批量注册工具函数。"""
         self._tool_registry.register_tools(tools=tools)
 
