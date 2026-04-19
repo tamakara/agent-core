@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 from .llm_client import LlmClient
 from .messages_storage import MessagesStorage
@@ -17,7 +17,7 @@ class Agent:
         llm_api_key: str,
         llm_base_url: str,
         system_prompt: str,
-        tools: Dict[str, Callable[..., Any]] = {},
+        mcp_servers: List[str],
     ):
         # 初始化 LLM 客户端
         self._llm_client = LlmClient(
@@ -33,7 +33,7 @@ class Agent:
 
         # 初始化工具注册表
         self._tool_registry = ToolRegistry()
-        self._tool_registry.register_tools(tools)
+        self._tool_registry.register_mcp_servers(mcp_servers)
 
     def chat(self, user_input: str, max_turns: int = 10) -> str:
         """

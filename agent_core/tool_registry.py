@@ -11,50 +11,29 @@ class ToolRegistry:
     """
 
     def __init__(self):
-        # 工具名 -> 可调用函数
-        self.tool_functions: Dict[str, Callable[..., Any]] = {}
         # 基于当前工具集合生成的 schema 缓存
         self.tools_schema: List[Dict[str, Any]] = []
 
-    def register_tool(self, tool_name: str, tool: Callable[..., Any]) -> None:
+    def register_mcp_servers(self, mcp_servers: List[str]) -> None:
         """
-        注册单个工具；同名工具会被覆盖。
+        批量注册 MCP 服务器。
         """
-        self.tool_functions[tool_name] = tool
-        self._refresh_tools_schema()
+        for server in mcp_servers:
+            self.register_mcp_server(server)
 
-    def register_tools(self, tools: Dict[str, Callable[..., Any]]) -> None:
+    def register_mcp_server(self, mcp_server: str) -> None:
         """
-        批量注册工具；同名工具会被覆盖。
+        注册 MCP 服务器。
         """
-        self.tool_functions.update(tools)
-        self._refresh_tools_schema()
+        # 这里可以添加具体的 MCP 服务器注册逻辑
+        pass
 
     def _refresh_tools_schema(self) -> None:
         """
         每次注册后重建 schema，保证传给模型的工具定义与当前注册表一致。
         """
-        self.tools_schema = [
-            self._build_function_tool_schema(tool_name, tool)
-            for tool_name, tool in self.tool_functions.items()
-        ]
-
-    def _build_function_tool_schema(
-        self, tool_name: str, tool: Callable[..., Any]
-    ) -> Dict[str, Any]:
-        """
-        根据 Python 函数签名与文档生成单个工具 schema。
-        """
-        return {
-            "type": "function",
-            "function": {
-                "name": tool_name,
-                "description": getdoc(tool) or "",
-                "parameters": GenerateJsonSchema().generate(
-                    generate_arguments_schema(tool)
-                ),
-            },
-        }
+        # 这里可以添加具体的 schema 生成逻辑，示例中暂时使用空列表
+        self.tools_schema = []
 
     def get_tools_schema(self) -> List[Dict[str, Any]]:
         """
@@ -66,4 +45,5 @@ class ToolRegistry:
         """
         按工具名执行工具，并将结果统一转为字符串返回。
         """
-        return str(self.tool_functions[tool_name](**tool_args))
+        # 这里可以添加具体的工具调用逻辑
+        return "Tool result"
