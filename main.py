@@ -1,10 +1,9 @@
-import os
+﻿import os
 import re
 
 from dotenv import load_dotenv
 
-from agent_core import Agent, LlmClient
-from agent_core.messages_storage import MessagesStorage
+from agent_core import Agent
 
 # 加载 .env 文件中的环境变量配置
 load_dotenv()
@@ -63,19 +62,16 @@ AVAILABLE_TOOLS = {
     "calculate": calculate,
 }
 
-# 初始化 LLM 客户端
-llm_client = LlmClient(model=LLM_MODEL_NAME, api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
 
-# 初始化消息存储对象，用于记录对话历史
-messages_storage = MessagesStorage()
 
 # 初始化 Agent，传入客户端、功能工具和系统提示词
 agent = Agent(
-    llm_client=llm_client,
-    tools=AVAILABLE_TOOLS,
+    llm_api_key=LLM_API_KEY,
+    llm_base_url=LLM_BASE_URL,
+    llm_model_name=LLM_MODEL_NAME,
     system_prompt=AGENT_SYSTEM_PROMPT,
-    messages_storage=messages_storage,
 )
+agent.register_tools(AVAILABLE_TOOLS)
 
 while True:
     # 模拟用户的提问
@@ -86,3 +82,4 @@ while True:
 
     # 打印最终的回答结果
     print(response)
+
