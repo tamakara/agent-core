@@ -39,8 +39,8 @@ pip install -r requirements.txt
 LLM_API_KEY=sk-xxxxxx
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL_NAME=gpt-5.4
-MCP_SSE_URL=http://localhost:8080/sse
-MCP_SSE_BEARER_TOKEN=xxxxxx
+MCP_GATEWAY_URL=http://localhost:8080/sse
+MCP_GATEWAY_BEARER_TOKEN=xxxxxx
 ```
 
 ## 快速开始
@@ -96,7 +96,7 @@ print(answer)
 - `Docker Desktop is not running`
   - 先启动 Docker Desktop，再执行 gateway 命令。
 - `启动失败: 连接 MCP SSE 服务失败`
-  - 确认网关正在运行、`MCP_SSE_URL` 正确，且网关后面有可用 MCP Server。
+  - 确认网关正在运行、`MCP_GATEWAY_URL` 正确，且网关后面有可用 MCP Server。
 
 ## 注意事项
 

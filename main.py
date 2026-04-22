@@ -11,8 +11,8 @@ load_dotenv()
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME", "")
-MCP_SSE_URL = os.environ.get("MCP_SSE_URL", "http://localhost:8080/sse")
-MCP_SSE_BEARER_TOKEN = os.environ.get("MCP_SSE_BEARER_TOKEN", "")
+MCP_GATEWAY_URL = os.environ.get("MCP_GATEWAY_URL", "http://localhost:8080/sse")
+MCP_GATEWAY_BEARER_TOKEN = os.environ.get("MCP_GATEWAY_BEARER_TOKEN", "")
 
 # 定义 Agent 的系统提示词，指导 Agent 的行为模式和任务约束
 SYSTEM_PROMPT = """
@@ -28,8 +28,8 @@ try:
         llm_base_url=LLM_BASE_URL,
         llm_model_name=LLM_MODEL_NAME,
         system_prompt=SYSTEM_PROMPT,
-        mcp_sse_url=MCP_SSE_URL,
-        mcp_sse_bearer_token=MCP_SSE_BEARER_TOKEN,
+        mcp_sse_url=MCP_GATEWAY_URL,
+        mcp_sse_bearer_token=MCP_GATEWAY_BEARER_TOKEN,
     )
 
     while True:
