@@ -1,7 +1,7 @@
 """Public package exports for agent_core."""
 
-from .agent import Agent
+from .agent_core import AgentCore
 
 __all__ = [
-    "Agent",
+    "AgentCore",
 ]

@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from agent_core import Agent
+from agent_core import AgentCore
 
 # 加载 .env 文件中的环境变量配置
 load_dotenv()
@@ -23,7 +23,7 @@ SYSTEM_PROMPT = """
 # 唯一 MCP Server：SSE 网关
 
 try:
-    agent = Agent(
+    agent = AgentCore(
         llm_api_key=LLM_API_KEY,
         llm_base_url=LLM_BASE_URL,
         llm_model_name=LLM_MODEL_NAME,

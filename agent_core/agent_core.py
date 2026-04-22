@@ -5,7 +5,7 @@ from .messages_storage import MessagesStorage
 from .tool_registry import ToolRegistry
 
 
-class Agent:
+class AgentCore:
     """
     智能体类，负责维护对话历史、管理工具调用流程与大模型交互。
     """
